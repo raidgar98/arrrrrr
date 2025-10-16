@@ -12,14 +12,14 @@ loaded with accessing to metadata when users access it.
 
 So this is how it looks in docker:
 
-| Host path                         | Docker path
----------------------------------------------------------------
-| /path/to/HDD/with/series          | /downloads/complete/Seriale
-| /path/to/HDD/with/series          | /downloads/complete/Anime
-| /path/to/HDD/with/movies          | /downloads/complete/Filmy
-| /path/to/HDD/with/movies          | /downloads/complete/Filmografia
-| /path/to/SSD/with/metadata        | /media
-| /path/to/dir/with/scripts         | /user-scripts
+| Host path                         | Docker path |
+|-----------------------------------|-------------------------- |
+| /path/to/HDD/with/series          | /downloads/complete/Seriale |
+| /path/to/HDD/with/series          | /downloads/complete/Anime |
+| /path/to/HDD/with/movies          | /downloads/complete/Filmy |
+| /path/to/HDD/with/movies          | /downloads/complete/Filmografia |
+| /path/to/SSD/with/metadata        | /media |
+| /path/to/dir/with/scripts         | /user-scripts |
 
 ### Configuration
 
