@@ -1,0 +1,144 @@
+x-anchors:
+    low_disk_priority: &low_disk_priority
+        blkio_config:
+            weight: 100
+
+    medium_disk_priority: &medium_disk_priority
+        blkio_config:
+            weight: 200
+
+    high_disk_priority: &high_disk_priority
+        blkio_config:
+            weight: 800
+
+    highest_disk_priority: &highest_disk_priority
+        blkio_config:
+            weight: 1000
+
+    low_limits: &low_limits
+        mem_swappiness: 80
+        cpu_shares: 400
+        memswap_limit: 1g
+        mem_limit: 512m
+        mem_reservation: 512m
+
+    medium_limits: &medium_limits
+        mem_swappiness: 40
+        cpu_shares: 800
+
+    high_limits: &high_limits
+        mem_swappiness: 10
+        cpu_shares: 1000
+
+    default_container_values: &default_container_values
+        restart: no
+        logging:
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+    default_container_values_with_network: &default_container_values_with_network
+        <<: *default_container_values
+        networks:
+            - default_host
+
+
+networks:
+  default_host:
+    external: true
+
+volumes:
+  rtorrent_incomplete:
+    external: true
+  rtorrent_complete_series:
+    external: true
+  rtorrent_complete_movies:
+    external: true
+  rtorrent_complete_games:
+    external: true
+  rtorrent_complete_manual:
+    external: true
+  jellyfin_metadata_media:
+    external: true
+  jellyseerr_metadata:
+    external: true
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    <<: [ *medium_limits, *low_disk_priority, *default_container_values ]
+    cap_add: [ NET_ADMIN ]
+    devices:
+      - /dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=<wygenerowana nazwa użytkownika z panelu ProtonVPN>+pmp
+      - OPENVPN_PASSWORD=<wygenerowany password z panely ProtonVPN>
+      - VPN_PORT_FORWARDING=on
+      - VPN_DNS_ADDRESS=10.2.0.1
+      - SERVER_HOSTNAMES=node-pl-07.protonvpn.net
+      - FIREWALL=on
+      - FIREWALL_INPUT_PORTS=3001,8000
+      - FIREWALL_INPUT_SUBNETS=<adres twojej lokalnej siecie>/<maska twojej lokalnej sieci>
+      - TZ=Europe/Warsaw
+      - HTTP_CONTROL_SERVER_ADDRESS=:3853
+      - VPN_PORT_FORWARDING_STATUS_FILE=/gluetun/forwarded_port
+      - PUBLICIP_FILE=/gluetun/public_ip
+      - DOT=off
+      - DNS_ADDRESS=10.2.0.1
+      - HEALTH_TARGET_ADDRESS=1.1.1.1:443
+    ports:
+      - "<IP HOST'a>:3001:3001"          # WebUI
+      - "<IP HOST'a>:8000:8000"          # XMLRPC
+    volumes:
+      - /storage/configs/gluetun/forwarded_port:/gluetun/forwarded_port
+      - /storage/configs/gluetun/public_ip:/gluetun/public_ip
+
+  rutorrent:
+    image: crazymax/rtorrent-rutorrent:latest
+    container_name: rutorrent
+    stop_grace_period: 30s
+    <<: [ *high_limits, *highest_disk_priority, *default_container_values ]
+    pids_limit: 0
+    network_mode: "service:gluetun" # KLUCZOWE!!!!
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    ulimits:
+        nproc: 65535
+        nofile: 131072
+    environment: 
+      - RUTORRENT_PORT=3001
+      - XMLRPC_PORT=8000
+    env_file:
+      - "/storage/configs/rutorrent/ports.env"
+      - "/storage/configs/rutorrent/rtorrent-rutorrent.env"
+    volumes:
+      # config files
+      - /storage/configs/rutorrent/data:/data
+      - /storage/configs/rutorrent/passwd:/passwd
+
+      # config input files
+      - /storage/configs/gluetun/forwarded_port:/gluetun/forwarded_port:ro
+
+      # storage
+      - rtorrent_complete_manual:/downloads/manual
+      - rtorrent_complete_series:/downloads/complete/Seriale
+      - rtorrent_complete_movies:/downloads/complete/Filmy
+      - rtorrent_complete_series:/downloads/complete/Anime
+      - rtorrent_complete_movies:/downloads/complete/Filmografia
+      - rtorrent_complete_games:/downloads/complete/Gry
+      - rtorrent_incomplete:/downloads/temp
+
+      # link destination for metadata
+      - jellyfin_metadata_media:/media
+
+      # scripts
+      - /storage/configs/rutorrent/init/10-set-rt-port.sh:/etc/cont-init.d/00-set-rt-port.sh:ro
+      - /storage/configs/rutorrent/scripts:/user-scripts:ro
+
+      # startup scripts
+      - /storage/configs/rutorrent/scripts/10-rsync-install.sh:/etc/cont-init.d/10-rsync-install.sh:ro
+
